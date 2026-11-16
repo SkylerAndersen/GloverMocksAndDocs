@@ -1,2 +1,3 @@
 #!/bin/bash
-exec java -jar mock.
+cd ~/.local/bin
+exec java -jar /Users/$USER/.local/bin/mock.jar "$@"
