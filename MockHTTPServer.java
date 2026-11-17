@@ -8,7 +8,7 @@ public class MockHTTPServer {
 	private static int port;
 	private static HttpServer httpServer;
 
-	private static String handle_unmapped_GET (String URI) {
+	private static String default_response_mapping (String URI) {
 		String response = "{\n\"type\": \"http://" +
 		MockHTTPServer.httpServer.getAddress().toString() +
 		"\",\n\"title\": \"Resource Not" +
@@ -45,11 +45,50 @@ public class MockHTTPServer {
 		return response;
 	}
 
+	private static String getUpstreamResponse () {
+		// generate mock data
+		int index = (int)(5 * Math.random());
+		int[] left = new int[5];
+		int[] right = new int[5];
+		for (int i = 0; i < 5; i++) {
+			left[i] = (int)(Math.random() + 0.5);
+			right[i] = (int)(Math.random() + 0.5);
+		}
+
+		// Convert arrays to strings
+		String leftString = "[" + left[0];
+		String rightString = "[" + right[0];
+		for (int i = 1; i < 5; i++) {
+			leftString += ", " + left[i];
+			rightString += ", " + right[i];
+		}
+		leftString += "],\n";
+		rightString += "]\n";
+		
+
+		// create response
+		String response = "{\n\"role\": \"primary\",\n\"hand\": " +
+			"\"right\",\n\"index\": " + index + ",\n\"left\": " +
+			leftString + "\"right\": " + rightString + "}";
+		return response;
+	}
+
 	private static void gloves (HttpExchange payload) {
 		// handle response logic
 		boolean isGetRequest = payload.getRequestMethod().equals("GET");
+		
+		// Extract query parameters
+		String query = payload.getRequestURI().getRawQuery();
+		boolean switchToUpstreamAPI =
+			(query != null && query.equals("server=esp32"));
+
+		// regular response logic for none or unrecognized params
 		String response = isGetRequest ? gloves_GET_mapping() :
-					handle_unmapped_GET("/gloves");
+					default_response_mapping("/gloves");
+
+		// override if we want upstream response
+		if (switchToUpstreamAPI && isGetRequest)
+			response = getUpstreamResponse();
 
 		// convert response to bytes
 		byte[] bytes = response.getBytes(StandardCharsets.UTF_8);
