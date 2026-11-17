@@ -3,6 +3,8 @@ import com.sun.net.httpserver.HttpExchange;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
 import java.io.OutputStream;
+import java.io.BufferedReader;
+import java.io.InputStreamReader;
 
 public class MockHTTPServer {
 	private static int port;
@@ -73,6 +75,54 @@ public class MockHTTPServer {
 		return response;
 	}
 
+	private static String getPostResponse (HttpExchange payload) {
+		BufferedReader reader = new BufferedReader(
+			new InputStreamReader(payload.getRequestBody(),
+					StandardCharsets.UTF_8));
+		String[] expected = {	"{",
+					"\"role\": \"primary\",",
+					"\"hand\": \"right\",",
+					"\"index\": ",
+					"\"left\": [",
+					"\"right\": [",
+					"}" };
+
+		String current;
+		int i = 0;
+		boolean matchesExpected = true;
+
+		String output = "";
+		try {
+			while ((current = reader.readLine()) != null &&
+				i < expected.length) {
+				// take current, strip whitespace, and sub
+				// string to check if it matches expected
+				// prefix for that line
+				current = current.strip().substring(0,
+					expected[i].length());
+
+				// check for failed match
+				if (!current.equals(expected[i]))
+					matchesExpected = false;
+
+				output += current + "\n";
+				i++;
+			}
+			reader.close();
+		} catch (Exception e) {
+			matchesExpected = false;
+			return "{\n\t\"message\": \"Failed to Read Body\"\n}";
+		}
+
+		if (i != expected.length)
+			matchesExpected = false;
+
+		if (matchesExpected)
+			return "{\n\t\"message\": \"Post Accepted\"\n}";
+
+		return "{\n\t\"message\": \"Malformed Payload\"\n}";
+	}
+
 	private static void gloves (HttpExchange payload) {
 		// handle response logic
 		boolean isGetRequest = payload.getRequestMethod().equals("GET");
@@ -89,6 +139,12 @@ public class MockHTTPServer {
 		// override if we want upstream response
 		if (switchToUpstreamAPI && isGetRequest)
 			response = getUpstreamResponse();
+
+		// if method is post, override everything
+		boolean isPostRequest = payload.getRequestMethod()
+						.equals("POST");
+		if (isPostRequest)
+			response = getPostResponse(payload);
 
 		// convert response to bytes
 		byte[] bytes = response.getBytes(StandardCharsets.UTF_8);
